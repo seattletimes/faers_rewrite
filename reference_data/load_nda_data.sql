@@ -1,5 +1,7 @@
 DROP TABLE IF EXISTS nda;
 
+-- FDA added a reference standard column since the original script by LTS was written
+
 CREATE TABLE nda
 (
   ingredient TEXT,

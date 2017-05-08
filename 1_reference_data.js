@@ -7,6 +7,8 @@ var fs = require("fs");
 var path = require("path");
 var url = require("url");
 
+var noop = function() {};
+
 /*
 
 Get the "Orange Book" from the FDA, which details drug products, patents, and
@@ -56,18 +58,19 @@ var getOrangeBook = function(done) {
 
 };
 
-var createRefDB = function(done) {
-  shell.exec("createdb faers", function(exit) {
-    console.log(exit);
+var createRefDB = function(done = noop) {
+  console.log("Creating `faers` database");
+  shell.exec("createdb faers", function() {
     if (done) done();
   });
 };
 
-var runLoadScript = function(done) {
+var runLoadScript = function(done = noop) {
+  console.log("Loading product data from Orange Book");
   shell.exec("psql -d faers -f load_nda_data.sql", { cwd: "reference_data" }, function(exit) {
-    if (exit) console.log(exit);
+    console.log("Data loaded");
     if (done) done();
   })
 }
 
-async.waterfall([getOrangeBook, createRefDB, runLoadScript]);
+async.series([getOrangeBook, createRefDB, runLoadScript]);
