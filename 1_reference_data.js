@@ -65,12 +65,14 @@ var createRefDB = function(done = noop) {
   });
 };
 
-var runLoadScript = function(done = noop) {
+var loadNDA = function(done = noop) {
   console.log("Loading product data from Orange Book");
-  shell.exec("psql -d faers -f load_nda_data.sql", { cwd: "reference_data" }, function(exit) {
-    console.log("Data loaded");
-    if (done) done();
-  })
-}
+  shell.exec("psql -d faers -f load_nda_data.sql", { cwd: "reference_data" }, done)
+};
 
-async.series([getOrangeBook, createRefDB, runLoadScript]);
+var loadCountries = function(done = noop) {
+  console.log("Loading country data from CSV");
+  shell.exec("psql -d faers -f load_country_code_table.sql", { cwd: "reference_data" }, done);
+};
+
+async.series([getOrangeBook, createRefDB, loadNDA, loadCountries]);
