@@ -58,6 +58,15 @@ var getOrangeBook = function(done) {
 
 };
 
+/*
+
+Stages for creating and populating the tables are largely taken from the LTS
+scripts, although I've cleaned up the SQL a bit and used \COPY instead of COPY
+because Postgres reasons. We also attempt to create the table ourselves,
+instead of manually creating it and its namespace.
+
+*/
+
 var createRefDB = function(done = noop) {
   console.log("Creating `faers` database");
   shell.exec("createdb faers", function() {
