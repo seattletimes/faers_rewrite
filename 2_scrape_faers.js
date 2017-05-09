@@ -83,7 +83,14 @@ var processCurrent = function() {
   var cleaners = require("./utils/cleaners");
 
   var files = fs.readdirSync("scratch/ascii");
+  //debug!
+  // files = files.filter(f => f.match(/drug/i));
+
   shell.mkdir("scratch/combined");
+
+  //keeping these open while we process all files may be a mistake. It may be
+  //better to filter the files to match the cleaners, and process those
+  //subsets one at a time.
   var fileStreams = {};
   var csvStreams = {};
 
@@ -104,14 +111,17 @@ var processCurrent = function() {
 
     var parser = csv.parse({
       columns: true,
-      delimiter: "$"
+      delimiter: "$",
+      relax: true
     });
 
     parser.on("error", err => console.log(err));
 
-    parser.on("data", function(row) {
-      var rewritten = cleaner(row);
-      output.write(rewritten);
+    parser.on("readable", function(row) {
+      while (var row = parser.read()) {
+        var rewritten = cleaner(row);
+        output.write(rewritten);
+      }
     });
 
     parser.on("finish", function(event) {

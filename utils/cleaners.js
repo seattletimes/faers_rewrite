@@ -4,7 +4,7 @@ var identity = function(columns) {
   return f;
 };
 
-var translator = function(translate) {
+var translator = function(translate, columns) {
   var f = function(row) {
     for (var key in translate) {
       row[key] = row[key] || row[translate[key]];
@@ -35,4 +35,4 @@ var rpsr = identity("primaryid$caseid$rpsr_cod");
 
 var ther = identity("primaryid$caseid$dsg_drug_seq$start_dt$end_dt$dur$dur_cod");
 
-module.exports = { demo };
+module.exports = { demo, drug, indi, outc, reac, rpsr, ther };
