@@ -127,6 +127,15 @@ var processCurrent = function() {
 
   });
 
+};
+
+var combineCurrent = function(done = noop) {
+  var normalized = fs.readdirSync("scratch/normalized");
+  async.eachSeries(normalized, function(n, c) {
+    var files = fs.readdirSync(`scratch/normalized/${n}`);
+    var command = files.join(" ");
+    shell.exec(`cat ${command} > ../combined/${n}.csv`, { cwd: "scratch/normalized" }, c);
+  }, done);
 }
 
-async.series([/*getCurrentFaers, unzipCurrent,*/ processCurrent]);
+async.series([/*getCurrentFaers, unzipCurrent,*/ processCurrent, combineCurrent]);
