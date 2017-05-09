@@ -83,60 +83,62 @@ var processCurrent = function() {
   var cleaners = require("./utils/cleaners");
 
   var files = fs.readdirSync("scratch/ascii");
-  //debug!
-  // files = files.filter(f => f.match(/drug/i));
 
-  shell.mkdir("scratch/combined");
+  async.eachSeries(types, function(t, nextType) {
 
-  //keeping these open while we process all files may be a mistake. It may be
-  //better to filter the files to match the cleaners, and process those
-  //subsets one at a time.
-  var fileStreams = {};
-  var csvStreams = {};
+    var cleaner = cleaners[t];
+    var subset = files.filter(f => f.match(new RegExp(t, "i")));
+    var fileStream = fs.createWriteStream(`scratch/combined/${t}_current.csv`);
+    var csvStream = csv.stringify({ headers: true, columns: cleaner.columns });
+    csvStream.pipe(fileStream);
 
-  async.eachSeries(files, function(f, c) {
-    var prefix = f.slice(0, 4).toLowerCase();
-    var cleaner = cleaners[prefix];
-    if (typeof cleaner != "function") {
-      console.log(`${f} - no cleanup function for ${prefix}`);
-      return c();
-    }
+    console.log("Combining files with type", t);
 
-    if (!csvStreams[prefix]) {
-      fileStreams[prefix] = fs.createWriteStream(`scratch/combined/${prefix}_current.csv`);
-      csvStreams[prefix] = csv.stringify({ headers: true, columns: cleaner.columns });
-      csvStreams[prefix].pipe(fileStreams[prefix]);
-    }
-    var output = csvStreams[prefix];
+    async.eachSeries(subset, function(f, nextFile) {
 
-    var parser = csv.parse({
-      columns: true,
-      delimiter: "$",
-      relax: true
+      var parser = csv.parse({
+        columns: true,
+        delimiter: "$",
+        relax: true
+      });
+
+      console.time(f);
+
+      parser.on("error", err => console.log(err));
+
+      parser.on("readable", function(row) {
+        var row;
+        while (row = parser.read()) {
+          if (parser.lines % 100000 == 0) console.log(`${parser.lines / 100000}00k lines read - ${f}`);
+          var rewritten = cleaner(row);
+          csvStream.write(rewritten);
+        }
+      });
+
+      parser.on("finish", function(event) {
+        console.log(`Processed ${parser.count} rows`);
+        console.timeEnd(f);
+        if (global.gc) global.gc();
+        nextFile();
+      });
+
+      console.log(`Processing ${f} as type "${t}"...`);
+      var input = fs.createReadStream(path.join("scratch/ascii", f));
+      input.pipe(parser);
+
+    }, function() {
+
+      csvStream.end();
+      csvStream.on("close", function() {
+        fileStream.end();
+        if (global.gc) global.gc();
+        nextType();
+      });
+
     });
 
-    parser.on("error", err => console.log(err));
-
-    parser.on("readable", function(row) {
-      while (var row = parser.read()) {
-        var rewritten = cleaner(row);
-        output.write(rewritten);
-      }
-    });
-
-    parser.on("finish", function(event) {
-      console.log(`Processed ${parser.count} rows`);
-      c();
-    });
-
-    console.log(`Processing ${f} as type "${prefix}"...`);
-    var input = fs.createReadStream(path.join("scratch/ascii", f));
-    input.pipe(parser);
   }, function() {
-    console.log("closing streams");
-    for (var k in csvStreams) {
-      csvStreams[k].end();
-    }
+    console.log("All done!");
   });
 
 }
