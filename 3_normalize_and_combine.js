@@ -75,9 +75,10 @@ var processCurrent = function(done = noop) {
 var combineCurrent = function(done = noop) {
   var normalized = fs.readdirSync("scratch/normalized");
   async.eachSeries(normalized, function(n, c) {
-    var files = fs.readdirSync(`scratch/normalized/${n}`);
-    var command = files.join(" ");
-    shell.exec(`cat ${command} > ../combined/${n}.csv`, { cwd: "scratch/normalized" }, c);
+    var from = `scratch/normalized/${n}`;
+    var files = fs.readdirSync(from);
+    var listing = files.join(" ");
+    shell.exec(`cat ${listing} > ../../combined/${n}.csv`, { cwd: from }, c);
   }, done);
 }
 
