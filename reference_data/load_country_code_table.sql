@@ -41,23 +41,3 @@ INSERT INTO country_code VALUES('VENEZUELA','VE');
 INSERT INTO country_code VALUES('WALLIS AND FUTUNA ISLANDS', 'WF');
 INSERT INTO country_code VALUES('YUGOSLAVIA','YU');
 INSERT INTO country_code VALUES('ZAIRE','CD');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
