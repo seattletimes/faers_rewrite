@@ -12,6 +12,7 @@
   "dependencies": {
     "async": "^2.4.0",
     "cheerio": "^0.22.0",
+    "csv": "^1.1.1",
     "request": "^2.81.0",
     "shelljs": "^0.7.7"
   }
