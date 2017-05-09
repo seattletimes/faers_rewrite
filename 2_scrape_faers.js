@@ -84,61 +84,47 @@ var processCurrent = function() {
 
   var files = fs.readdirSync("scratch/ascii");
 
-  async.eachSeries(types, function(t, nextType) {
+  async.eachSeries(files, function(f, nextFile) {
 
-    var cleaner = cleaners[t];
-    var subset = files.filter(f => f.match(new RegExp(t, "i")));
-    var fileStream = fs.createWriteStream(`scratch/combined/${t}_current.csv`);
+    var prefix = f.slice(0, 4).toLowerCase();
+    var basename = path.basename(f, path.extname(f)).toUpperCase();
+    var cleaner = cleaners[prefix];
+
+    //create the output for the normalized file
+    shell.mkdir("-p", `scratch/normalized/${prefix}`);
+    var fileStream = fs.createWriteStream(`scratch/normalized/${prefix}/${basename}.csv`);
     var csvStream = csv.stringify({ headers: true, columns: cleaner.columns });
     csvStream.pipe(fileStream);
 
-    console.log("Combining files with type", t);
-
-    async.eachSeries(subset, function(f, nextFile) {
-
-      var parser = csv.parse({
-        columns: true,
-        delimiter: "$",
-        relax: true
-      });
-
-      console.time(f);
-
-      parser.on("error", err => console.log(err));
-
-      parser.on("readable", function(row) {
-        var row;
-        while (row = parser.read()) {
-          if (parser.lines % 100000 == 0) console.log(`${parser.lines / 100000}00k lines read - ${f}`);
-          var rewritten = cleaner(row);
-          csvStream.write(rewritten);
-        }
-      });
-
-      parser.on("finish", function(event) {
-        console.log(`Processed ${parser.count} rows`);
-        console.timeEnd(f);
-        if (global.gc) global.gc();
-        nextFile();
-      });
-
-      console.log(`Processing ${f} as type "${t}"...`);
-      var input = fs.createReadStream(path.join("scratch/ascii", f));
-      input.pipe(parser);
-
-    }, function() {
-
-      csvStream.end();
-      csvStream.on("close", function() {
-        fileStream.end();
-        if (global.gc) global.gc();
-        nextType();
-      });
-
+    var parser = csv.parse({
+      columns: true,
+      delimiter: "$",
+      relax: true
     });
 
+    console.time(f);
+
+    parser.on("error", err => console.log(err));
+
+    parser.on("data", row => csvStream.write(cleaner(row)));
+
+    parser.on("finish", function(event) {
+      console.log(`Processed ${parser.count} rows`);
+      console.timeEnd(f);
+      if (global.gc) global.gc();
+      csvStream.end();
+      fileStream.end();
+      nextFile();
+    });
+
+    console.log(`Processing ${f} using type "${prefix}"...`);
+    var input = fs.createReadStream(path.join("scratch/ascii", f));
+    input.pipe(parser);
+
   }, function() {
-    console.log("All done!");
+
+    console.log("All files done");
+
   });
 
 }
