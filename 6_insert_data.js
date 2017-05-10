@@ -42,4 +42,8 @@ var loadCurrent = function(done = noop) {
   }, done);
 };
 
+var loadLegacy = function(done = noop) {
+
+};
+
 async.series([loadCurrent]);

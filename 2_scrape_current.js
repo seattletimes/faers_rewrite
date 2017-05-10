@@ -22,6 +22,8 @@ chain on the way.
 
 var currentPage = "https://www.fda.gov/Drugs/GuidanceComplianceRegulatoryInformation/Surveillance/AdverseDrugEffects/ucm082193.htm";
 var getCurrentFaers = function(done = noop) {
+  shell.mkdir("-p", "scratch/current");
+
   request(currentPage, function(err, response, body) {
     var $ = cheerio.load(body);
     var links = $(`[href*="UCM"][href*="zip"]`)
@@ -31,7 +33,7 @@ var getCurrentFaers = function(done = noop) {
 
     async.eachLimit(links, 4, function(href, c) {
       var name = path.basename(url.parse(href).pathname);
-      var dest = path.join("scratch", name);
+      var dest = path.join("scratch/current", name);
       if (fs.existsSync(dest)) return c();
       console.log(`Downloading current FAERS data: ${name}`);
       var r = request(href);
@@ -51,10 +53,10 @@ done with my life. Unzip them in this step.
 */
 
 var unzipCurrent = function(done = noop) {
-  fs.readdir("scratch", function(err, list) {
+  fs.readdir("scratch/current", function(err, list) {
     async.eachSeries(list.filter(n => n.match(/\.zip$/)), function(file, c) {
       // unzip -o overwrite -C case insensitive -j flatten directories -d destination
-      shell.exec(`unzip -oCj ${file} -d ascii a\\*/\\*.txt`, { cwd: "scratch" }, c);
+      shell.exec(`unzip -oCj ${file} -d ../ascii a\\*/\\*.txt`, { cwd: "scratch/current" }, c);
     }, done);
   });
 };

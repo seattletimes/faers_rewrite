@@ -15,20 +15,21 @@ Now we need to merge the files together into one big file per table: DEMO,
 DRUG, INDI, OUTC, REAC, RPSR, and THER.
 
 Fun problems: the filenames are not consistently cased up or down. There are
-multiple formats per individual file type, which we will want to sniff out
-from the header. These files are too large to want to load and process in
-their entirety. So we'll use a stream to load them and then serialize them
-back out into our single-data files.
+multiple formats per individual file type as the FDA has changed them over
+time (including the shift between the current system and the legacy data).
+These files are too large to want to load and process in their entirety. So
+we'll use a stream to load them and then serialize them back out into our
+single-data files, this time as a standard CSV instead of a $-delimited file.
 
-Stream handlers are loaded from clean_current and clean_legacy, and should
-take the form of a transform function that takes the input from each file and
-converts it into an object with the expected columns. The function should also
-have an attached `columns` property containing an array with the order of the
-columns for output.
+Stream handlers are loaded from `cleaners.js`, and should take the form of a
+transform function that takes the input from each file and converts it into an
+object with the expected columns. The function should also have an attached
+`columns` property containing an array with the order of the columns for
+output.
 
 */
 
-var processCurrent = function(done = noop) {
+var processAscii = function(done = noop) {
 
   var files = fs.readdirSync("scratch/ascii");
 
@@ -73,7 +74,7 @@ var processCurrent = function(done = noop) {
 
 };
 
-var combineCurrent = function(done = noop) {
+var combineAscii = function(done = noop) {
   var normalized = fs.readdirSync("scratch/normalized");
   async.eachSeries(normalized, function(n, c) {
     var from = `scratch/normalized/${n}`;
@@ -83,4 +84,4 @@ var combineCurrent = function(done = noop) {
   }, done);
 }
 
-async.series([processCurrent, combineCurrent]);
+async.series([processAscii, combineAscii]);
