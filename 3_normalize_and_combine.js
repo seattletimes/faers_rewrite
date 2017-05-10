@@ -2,6 +2,8 @@ var async = require("async");
 var csv = require("csv");
 var shell = require("shelljs");
 
+var cleaners = require("./cleaners");
+
 var fs = require("fs");
 var path = process.platform == "win32" ? require("path").win32 : require("path");
 
@@ -27,7 +29,6 @@ columns for output.
 */
 
 var processCurrent = function(done = noop) {
-  var cleaners = require("./utils/cleaners");
 
   var files = fs.readdirSync("scratch/ascii");
 
