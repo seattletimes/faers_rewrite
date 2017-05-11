@@ -26,6 +26,7 @@ var processAscii = function(done = noop) {
   async.eachSeries(files, function(f, nextFile) {
 
     var prefix = f.slice(0, 4).toLowerCase();
+    if (prefix == "stat") return nextFile();
     var basename = path.basename(f, path.extname(f)).toUpperCase();
     var cleaner = cleaners[prefix + "_legacy"];
 
