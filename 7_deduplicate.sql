@@ -156,95 +156,271 @@ CREATE TABLE all_casedemo AS (
 
 /*
 
-------------------------------
+Now we're going to start filling in information where it may be missing from
+other reports (imputation). Basically, we create a table containing the rows
+where all the information is filled in. Then, we find the rows where they have
+all but one field filled in, look for a row that matches all the fields in the
+completed table, and use that to fill in the single missing value. In theory,
+this ensures that we're only completing data when we have sufficient
+information to disambiguate a row convincingly. 
 
--- perform single imputation of missing 'key' demographic fields for multiple reports within the same case across all the legacy and current data
+All told, this process involves two queries per imputation: one to create the
+table of complete values with the most recent version of the missing field,
+and one to fill in from that table. Each of the filler queries also sets an
+`imputed_field` column, so that we can track which updates came from where. It
+might be a good idea to filter out non-null `imputed_field` rows from the
+first query, so that we don't use imputed rows to fill in further rows, but
+the original script doesn't do that and I'm not sure how much it matters.
 
--- create table of default demo event_dt key value for each case where all the key fields are populated on at least one report for that case
-drop table if exists default_all_casedemo_event_dt_keys; 
-create table default_all_casedemo_event_dt_keys as 
-select caseid, age, sex, reporter_country, max(event_dt) as default_event_dt
-from all_casedemo 
-where caseid is not null and event_dt is not null and age is not null and sex is not null and reporter_country is not null
-group by caseid, age, sex, reporter_country;
+Needless to say, this part of the script is really repetitive, and ideally
+should be machine generated in the future.
 
--- single imputation of missing event_dt 
-update all_casedemo a
-set event_dt = default_event_dt, imputed_field_name = 'event_dt' 
-from default_all_casedemo_event_dt_keys d
-where a.caseid = d.caseid and a.age = d.age and a.sex = d.sex and a.reporter_country = d.reporter_country
-and a.caseid is not null and a.event_dt is null and a.age is not null and a.sex is not null and a.reporter_country is not null;
+Start with the `event_dt` column:
 
--- create table of default demo age key value for each case where all the key fields are populated on at least one report for that case
-drop table if exists default_all_casedemo_age_keys; 
-create table default_all_casedemo_age_keys as 
-select caseid, event_dt, sex, reporter_country, max(age) as default_age
-from all_casedemo 
-where caseid is not null and event_dt is not null and age is not null and sex is not null and reporter_country is not null
-group by caseid, event_dt, sex, reporter_country;
-
--- single imputation of missing age 
-update all_casedemo a 
-set age = default_age, imputed_field_name = 'age'  
-from default_all_casedemo_age_keys d
-where a.caseid = d.caseid and a.event_dt = d.event_dt and a.sex = d.sex and a.reporter_country = d.reporter_country
-and a.caseid is not null and a.event_dt is not null and a.age is null and a.sex is not null and a.reporter_country is not null;
-
--- create table of default demo gender key value for each case where all the key fields are populated on at least one report for that case
-drop table if exists default_all_casedemo_sex_keys; 
-create table default_all_casedemo_sex_keys as 
-select caseid, event_dt, age, reporter_country, max(sex) as default_sex
-from all_casedemo 
-where caseid is not null and event_dt is not null and age is not null and sex is not null and reporter_country is not null
-group by caseid, event_dt, age, reporter_country;
-
--- single imputation of missing gender
-update all_casedemo a 
-set sex = default_sex, imputed_field_name = 'sex' 
-from default_all_casedemo_sex_keys d
-where a.caseid = d.caseid and a.event_dt = d.event_dt and a.age = d.age and a.reporter_country = d.reporter_country
-and a.caseid is not null and a.event_dt is not null and a.age is not null and a.sex is null and a.reporter_country is not null;
-
--- create table of default demo reporter_country key value for each case where all the key fields are populated on at least one report for that case
-drop table if exists default_all_casedemo_reporter_country_keys; 
-create table default_all_casedemo_reporter_country_keys as 
-select caseid, event_dt, age, sex, max(reporter_country) as default_reporter_country
-from all_casedemo 
-where caseid is not null and event_dt is not null and age is not null and sex is not null and reporter_country is not null
-group by caseid, event_dt, age, sex;
-
--- single imputation of missing reporter_country
-update all_casedemo a
-set reporter_country = default_reporter_country, imputed_field_name = 'reporter_country'  
-from default_all_casedemo_reporter_country_keys d
-where a.caseid = d.caseid and a.event_dt = d.event_dt and a.age = d.age and a.sex = d.sex
-and a.caseid is not null and a.event_dt is not null and a.age is not null and a.sex is not null and a.reporter_country is null;
-
-------------------------------
-
--- get the latest case row for each case across both the legacy LAERS and current FAERS data based on CASE ID
-drop table if exists unique_all_casedemo;
-create table unique_all_casedemo as
-select database, caseid, isr, caseversion, i_f_code, event_dt, age, sex, reporter_country, primaryid, drugname_list, reac_pt_list, fda_dt
-from (
-select *, 
-row_number() over(partition by caseid order by primaryid desc, database desc, fda_dt desc, i_f_code, isr desc) as row_num 
-from all_casedemo 
-) a where a.row_num = 1;
-
--- remove any duplicates based on fully populated matching demographic key fields and exact match on list of drugs and list of outcomes (FAERS reactions)
--- NOTE. when using this table for subsequent joins in the ETL process, join to FAERS data using primaryid and join to LAERS data using isr
-drop table if exists unique_all_case;   
-create table unique_all_case as
-select caseid, case when isr is not null then null else primaryid end as primaryid, isr 
-from (
-  select caseid, primaryid,isr, 
-  row_number() over(partition by event_dt, age, sex, reporter_country, drugname_list, reac_pt_list order by primaryid desc, database desc, fda_dt desc, i_f_code, isr desc) as row_num 
-  from unique_all_casedemo 
-  where caseid is not null and event_dt is not null and age is not null and sex is not null and reporter_country is not null and drugname_list is not null and reac_pt_list is not null
-) a where a.row_num = 1
-union 
-select caseid, case when isr is not null then null else primaryid end as primaryid, isr 
-from unique_all_casedemo 
-where caseid is null or event_dt is null or age is null or sex is null or reporter_country is null or drugname_list is null or reac_pt_list is null;
 */
+
+DROP TABLE IF EXISTS default_all_casedemo_event_dt_keys;
+CREATE TABLE default_all_casedemo_event_dt_keys AS (
+  SELECT
+    caseid,
+    age,
+    sex,
+    reporter_country,
+    MAX(event_dt) AS default_event_dt
+  FROM all_casedemo
+  WHERE
+    caseid IS NOT NULL AND
+    event_dt IS NOT NULL AND
+    age IS NOT NULL AND
+    sex IS NOT NULL AND
+    reporter_country IS NOT NULL
+  GROUP BY caseid, age, sex, reporter_country
+);
+
+UPDATE all_casedemo
+  SET
+    event_dt = default_event_dt,
+    imputed_field_name = 'event_dt'
+  FROM default_all_casedemo_event_dt_keys AS d
+  WHERE 
+    all_casedemo.caseid = d.caseid AND
+    all_casedemo.age = d.age AND
+    all_casedemo.sex = d.sex AND
+    all_casedemo.reporter_country = d.reporter_country AND
+    all_casedemo.caseid IS NOT NULL AND
+    all_casedemo.age IS NOT NULL AND
+    all_casedemo.sex IS NOT NULL AND
+    all_casedemo.reporter_country IS NOT NULL AND
+    all_casedemo.event_dt IS NULL;
+
+/*
+
+Age column:
+
+*/
+
+DROP TABLE IF EXISTS default_all_casedemo_age_keys;
+CREATE TABLE default_all_casedemo_age_keys AS (
+  SELECT
+    caseid,
+    event_dt,
+    sex,
+    reporter_country,
+    MAX(age) AS default_age
+  FROM all_casedemo
+  WHERE
+    caseid IS NOT NULL AND
+    event_dt IS NOT NULL AND
+    age IS NOT NULL AND
+    sex IS NOT NULL AND
+    reporter_country IS NOT NULL
+  GROUP BY caseid, event_dt, sex, reporter_country
+);
+
+UPDATE all_casedemo
+  SET
+    age = default_age,
+    imputed_field_name = 'age'
+  FROM default_all_casedemo_age_keys AS d
+  WHERE
+    all_casedemo.caseid = d.caseid AND
+    all_casedemo.event_dt = d.event_dt AND
+    all_casedemo.sex = d.sex AND
+    all_casedemo.reporter_country = d.reporter_country AND
+    all_casedemo.caseid IS NOT NULL AND
+    all_casedemo.event_dt IS NOT NULL AND
+    all_casedemo.sex IS NOT NULL AND
+    all_casedemo.reporter_country IS NOT NULL AND
+    all_casedemo.age IS NULL;
+
+/*
+
+Sex column:
+
+*/
+
+DROP TABLE IF EXISTS default_all_casedemo_sex_keys;
+CREATE TABLE default_all_casedemo_sex_keys AS (
+  SELECT
+    caseid,
+    event_dt,
+    age,
+    reporter_country,
+    MAX(sex) AS default_sex --max? Seems odd.
+  FROM all_casedemo
+  WHERE
+    caseid IS NOT NULL AND
+    event_dt IS NOT NULL AND
+    age IS NOT NULL AND
+    sex IS NOT NULL AND
+    reporter_country IS NOT NULL
+  GROUP BY caseid, event_dt, age, reporter_country
+);
+
+UPDATE all_casedemo
+  SET
+    sex = default_sex,
+    imputed_field_name = 'sex'
+  FROM default_all_casedemo_sex_keys d
+  WHERE
+    all_casedemo.caseid = d.caseid AND
+    all_casedemo.event_dt = d.event_dt AND
+    all_casedemo.age = d.age AND
+    all_casedemo.reporter_country = d.reporter_country AND
+    all_casedemo.caseid IS NOT NULL AND
+    all_casedemo.event_dt IS NOT NULL AND
+    all_casedemo.age IS NOT NULL AND
+    all_casedemo.reporter_country IS NOT NULL AND
+    all_casedemo.sex IS NULL;
+
+/*
+
+Reporter country column:
+
+*/
+
+DROP TABLE IF EXISTS default_all_casedemo_reporter_country_keys;
+CREATE TABLE default_all_casedemo_reporter_country_keys AS (
+  SELECT
+    caseid,
+    event_dt,
+    age,
+    sex,
+    MAX(reporter_country) AS default_reporter_country
+  FROM all_casedemo
+  WHERE
+    caseid IS NOT NULL AND
+    event_dt IS NOT NULL AND
+    age IS NOT NULL AND
+    sex IS NOT NULL AND
+    reporter_country IS NOT NULL
+  GROUP BY caseid, event_dt, age, sex
+);
+
+UPDATE all_casedemo
+  SET
+    reporter_country = default_reporter_country,
+    imputed_field_name = 'reporter_country'
+  FROM default_all_casedemo_reporter_country_keys AS d
+  WHERE
+    all_casedemo.caseid = d.caseid AND
+    all_casedemo.event_dt = d.event_dt AND
+    all_casedemo.age = d.age AND
+    all_casedemo.sex = d.sex AND
+    all_casedemo.caseid IS NOT NULL AND
+    all_casedemo.event_dt IS NOT NULL AND
+    all_casedemo.age IS NOT NULL AND
+    all_casedemo.sex IS NOT NULL AND
+    all_casedemo.reporter_country IS NULL;
+
+/*
+
+Finally, let's deduplicate the data. We'll create a table containing the
+latest row for each caseid from all_casedemo using the partition subquery.
+Then we'll take that table, partition on the combination of all fields for
+completed rows, select the top row from those partitions (to get the subset of
+unique completed rows) and merge that with the remaining partly-null rows.
+
+The resulting table is a list of all the unique records by case ID, primary
+ID, and ISR, but no data otherwise. In order to use it, we must match it up
+against the other tables to actually get reporting data.
+
+*/
+
+DROP TABLE IF EXISTS unique_all_casedemo;
+CREATE TABLE unique_all_casedemo AS (
+  SELECT
+    --get just the data, not partition row number from the subquery
+    database,
+    caseid,
+    isr,
+    caseversion,
+    i_f_code,
+    event_dt,
+    age,
+    sex,
+    reporter_country,
+    primaryid,
+    drugname_list,
+    reac_pt_list,
+    fda_dt
+  FROM (
+    --split the data into caseid partitions and identify the row number for each one
+    SELECT
+      *,
+      ROW_NUMBER() OVER(
+        PARTITION BY caseid
+        ORDER BY primaryid DESC, database DESC, fda_dt DESC, i_f_code, isr DESC
+      ) AS row_num
+    FROM all_casedemo
+  ) AS a
+  -- get the topmost row number for each caseid partition
+  WHERE a.row_num = 1
+);
+
+DROP TABLE IF EXISTS unique_all_case;
+CREATE TABLE unique_all_case AS (
+  SELECT
+    caseid,
+    CASE 
+      WHEN isr IS NOT NULL THEN null ELSE primaryid END
+      AS primaryid,
+    isr
+  FROM (
+    SELECT
+      caseid,
+      primaryid,
+      isr,
+      ROW_NUMBER() OVER(
+        PARTITION BY event_dt, age, sex, reporter_country, drugname_list, reac_pt_list
+        ORDER BY primaryid DESC, database DESC, fda_dt DESC, i_f_code, isr DESC
+      ) AS row_num
+    FROM unique_all_casedemo
+    WHERE
+      caseid IS NOT NULL AND
+      event_dt IS NOT NULL AND
+      age IS NOT NULL AND
+      sex IS NOT NULL AND
+      reporter_country IS NOT NULL AND
+      drugname_list IS NOT NULL AND
+      reac_pt_list IS NOT NULL
+  ) AS a
+  WHERE a.row_num = 1
+  UNION (
+    SELECT
+      caseid,
+      CASE
+        WHEN isr IS NOT NULL THEN null ELSE primaryid END
+        AS primaryid,
+      isr
+    FROM unique_all_casedemo
+    WHERE
+      caseid IS NULL OR
+      event_dt IS NULL OR
+      age IS NULL OR
+      sex IS NULL OR
+      reporter_country IS NULL OR
+      drugname_list IS NULL OR
+      reac_pt_list IS NULL
+  )
+);
