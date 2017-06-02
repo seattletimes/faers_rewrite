@@ -84,7 +84,7 @@ var unzipLegacy = function(done = noop) {
   shell.mkdir("-p", "scratch/ascii_legacy");
   var files = fs.readdirSync("scratch/legacy");
   async.eachSeries(files, function(file, c) {
-    shell.exec(`unzip -oCj ${file} -d ../ascii_legacy a\\*/\\*.txt`, { cwd: "scratch/legacy" }, c)
+    shell.exec(`unzip -oCj ${file} -d ../ascii_legacy a*/*.txt`, { cwd: "scratch/legacy" }, c)
   }, done);
 };
 

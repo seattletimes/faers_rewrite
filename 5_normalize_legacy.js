@@ -54,8 +54,8 @@ var processAscii = function(done = noop) {
       console.timeEnd(f);
       if (global.gc) global.gc();
       csvStream.end();
-      fileStream.end();
-      nextFile();
+      
+      fileStream.on("close", nextFile);
     });
 
     console.log(`Processing ${f} using type "${prefix}"...`);

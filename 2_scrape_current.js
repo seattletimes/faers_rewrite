@@ -56,7 +56,7 @@ var unzipCurrent = function(done = noop) {
   fs.readdir("scratch/current", function(err, list) {
     async.eachSeries(list.filter(n => n.match(/\.zip$/)), function(file, c) {
       // unzip -o overwrite -C case insensitive -j flatten directories -d destination
-      shell.exec(`unzip -oCj ${file} -d ../ascii a\\*/\\*.txt`, { cwd: "scratch/current" }, c);
+      shell.exec(`unzip -oCj ${file} -d ../ascii a*/*.txt`, { cwd: "scratch/current" }, c);
     }, done);
   });
 };

@@ -55,18 +55,24 @@ var processAscii = function(done = noop) {
 
     parser.on("error", err => console.log(err));
 
-    parser.on("data", row => csvStream.write(cleaner(row)));
+    var written = 0;
+
+    parser.on("data", row => {
+      csvStream.write(cleaner(row));
+      written++;
+    });
 
     parser.on("finish", function(event) {
       console.log(`Processed ${parser.count} rows`);
+      console.log(`Wrote ${written} rows`);
       console.timeEnd(f);
       if (global.gc) global.gc();
       csvStream.end();
-      fileStream.end();
-      nextFile();
+
+      fileStream.on("close", nextFile);
     });
 
-    console.log(`Processing ${f} using type "${prefix}"...`);
+    console.log(`Processing ${f} to ${basename} using type "${prefix}"...`);
     var input = fs.createReadStream(path.join("scratch/ascii", f));
     input.pipe(parser);
 
