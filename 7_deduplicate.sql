@@ -22,6 +22,8 @@ names and reactions into the demographic data, keyed on the case ID.
 
 */
 
+\echo 'Creating drug/reaction name lists...'
+
 DROP TABLE IF EXISTS drugname_list;
 CREATE TABLE drugname_list AS (
   SELECT
@@ -70,6 +72,8 @@ https://www.fda.gov/downloads/Drugs/GuidanceComplianceRegulatoryInformation/Surv
 
 */
 
+\echo 'Creating drugname/reaction lists for legacy data...'
+
 DROP TABLE IF EXISTS drugname_legacy_list;
 CREATE TABLE drugname_legacy_list AS (
   SELECT
@@ -114,6 +118,8 @@ legacy data using the lookup table created during step one of this long
 process.
 
 */
+
+\echo 'Combining legacy and current data...'
 
 DROP TABLE IF EXISTS all_casedemo;
 CREATE TABLE all_casedemo AS (
@@ -179,6 +185,8 @@ Start with the `event_dt` column:
 
 */
 
+\echo 'Imputing on event_dt...'
+
 DROP TABLE IF EXISTS default_all_casedemo_event_dt_keys;
 CREATE TABLE default_all_casedemo_event_dt_keys AS (
   SELECT
@@ -218,6 +226,8 @@ UPDATE all_casedemo
 Age column:
 
 */
+
+\echo 'Imputing on age...'
 
 DROP TABLE IF EXISTS default_all_casedemo_age_keys;
 CREATE TABLE default_all_casedemo_age_keys AS (
@@ -259,6 +269,8 @@ Sex column:
 
 */
 
+\echo 'Imputing on sex...'
+
 DROP TABLE IF EXISTS default_all_casedemo_sex_keys;
 CREATE TABLE default_all_casedemo_sex_keys AS (
   SELECT
@@ -298,6 +310,8 @@ UPDATE all_casedemo
 Reporter country column:
 
 */
+
+\echo 'Imputing on country'
 
 DROP TABLE IF EXISTS default_all_casedemo_reporter_country_keys;
 CREATE TABLE default_all_casedemo_reporter_country_keys AS (
@@ -346,6 +360,8 @@ ID, and ISR, but no data otherwise. In order to use it, we must match it up
 against the other tables to actually get reporting data.
 
 */
+
+\echo 'Deduplicating data...'
 
 DROP TABLE IF EXISTS unique_all_casedemo;
 CREATE TABLE unique_all_casedemo AS (

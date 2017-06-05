@@ -66,14 +66,17 @@ var processAscii = function(done = noop) {
 
 };
 
+
 var combineAscii = function(done = noop) {
   var normalized = fs.readdirSync("scratch/normalized_legacy");
+  shell.mkdir("scratch/combined");
   async.eachSeries(normalized, function(n, c) {
     var from = `scratch/normalized_legacy/${n}`;
+    console.log("Joining", from);
     var files = fs.readdirSync(from);
     var listing = files.join(" ");
     shell.exec(`cat ${listing} > ../../combined/${n}_legacy.csv`, { cwd: from }, c);
   }, done);
-}
+};
 
 async.series([processAscii, combineAscii]);
